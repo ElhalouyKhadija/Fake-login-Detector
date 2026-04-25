@@ -1,0 +1,53 @@
+import time
+from collections import defaultdict
+
+class FakeLoginDetector:
+    def __init__(self):
+        #  YOU CAN CHANGE THESE SETTINGS
+        self.max_failed_attempts = 3
+        self.time_window = 60          # seconds
+        self.rapid_attempt_limit = 10  # seconds
+        self.max_ips_allowed = 2
+
+        self.logs = defaultdict(list)
+
+    def log_attempt(self, username, ip, success):
+        """Store login attempt"""
+        now = time.time()
+        self.logs[username].append({
+            "time": now,
+            "ip": ip,
+            "success": success
+        })
+
+        # clean old logs
+        self.logs[username] = [
+            log for log in self.logs[username]
+            if now - log["time"] <= self.time_window
+        ]
+
+    def analyze_user(self, username):
+        """Check if user is suspicious"""
+        attempts = self.logs[username]
+
+        if not attempts:
+            return False, "No activity"
+
+        failed = [a for a in attempts if not a["success"]]
+        ips = set(a["ip"] for a in attempts)
+
+        #  Rule 1: Too many failed attempts
+        if len(failed) >= self.max_failed_attempts:
+            return True, "Too many failed login attempts"
+
+        #  Rule 2: Too many IPs
+        if len(ips) > self.max_ips_allowed:
+            return True, "Multiple IP addresses detected"
+
+        #  Rule 3: Rapid attempts (bot behavior)
+        if len(attempts) > 1:
+            time_diff = attempts[-1]["time"] - attempts[0]["time"]
+            if time_diff < self.rapid_attempt_limit:
+                return True, "Rapid login behavior detected"
+
+        return False, "Normal behavior"
